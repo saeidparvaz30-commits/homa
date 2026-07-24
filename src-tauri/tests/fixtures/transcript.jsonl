@@ -1,0 +1,2 @@
+{"type":"user","timestamp":"2026-07-24T10:00:00Z","gitBranch":"main","message":{"role":"user","content":"hi"}}
+{"type":"assistant","timestamp":"2026-07-24T10:00:05Z","gitBranch":"main","message":{"model":"claude-fable-5","role":"assistant","usage":{"input_tokens":2,"cache_read_input_tokens":40000,"cache_creation_input_tokens":60000,"output_tokens":447}}}
