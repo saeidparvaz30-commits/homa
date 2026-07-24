@@ -1,0 +1,203 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Homa — Design Spec</title>
+<style>
+  :root{
+    --bg:#0f1115; --panel:#161a21; --panel-2:#1c222c; --ink:#e8ecf2; --muted:#9aa6b6;
+    --line:#2a323f; --accent:#7cc4ff; --calm:#4ea1ff; --idle:#f4b942; --wait:#ff5c6c;
+    --ended:#6b7686; --green:#54d693;
+  }
+  @media (prefers-color-scheme: light){
+    :root{ --bg:#f6f8fb; --panel:#ffffff; --panel-2:#f0f3f8; --ink:#182029; --muted:#5a6675;
+           --line:#e0e6ee; --accent:#1f6feb; --calm:#1f6feb; }
+  }
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--bg);color:var(--ink);
+    font:16px/1.6 -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif}
+  .wrap{max-width:920px;margin:0 auto;padding:48px 24px 96px}
+  header.hero{border:1px solid var(--line);border-radius:16px;padding:32px;
+    background:linear-gradient(160deg,var(--panel),var(--panel-2))}
+  .kicker{letter-spacing:.14em;text-transform:uppercase;font-size:12px;color:var(--muted)}
+  h1{font-size:40px;margin:.2em 0 .1em;letter-spacing:-.02em}
+  .tag{color:var(--muted);font-size:15px}
+  .lede{font-size:18px;color:var(--ink);margin-top:16px;max-width:60ch}
+  .meta{display:flex;flex-wrap:wrap;gap:8px;margin-top:20px}
+  .chip{font-size:12.5px;color:var(--muted);border:1px solid var(--line);
+    border-radius:999px;padding:4px 12px;background:var(--panel)}
+  h2{font-size:24px;margin:52px 0 8px;letter-spacing:-.01em}
+  h2 .n{color:var(--accent);font-variant-numeric:tabular-nums;margin-right:10px}
+  h3{font-size:17px;margin:26px 0 6px;color:var(--ink)}
+  p{color:var(--ink)} .muted{color:var(--muted)}
+  section{border-top:1px solid var(--line);padding-top:8px}
+  table{width:100%;border-collapse:collapse;margin:14px 0;font-size:14.5px;
+    overflow:hidden;border-radius:10px;border:1px solid var(--line)}
+  th,td{text-align:left;padding:10px 12px;border-bottom:1px solid var(--line);vertical-align:top}
+  th{background:var(--panel-2);color:var(--muted);font-weight:600;font-size:12.5px;
+    text-transform:uppercase;letter-spacing:.04em}
+  tr:last-child td{border-bottom:none}
+  code,pre{font-family:"SF Mono",ui-monospace,"Cascadia Code",Consolas,monospace}
+  code{background:var(--panel-2);padding:.12em .4em;border-radius:6px;font-size:.9em}
+  pre{background:var(--panel);border:1px solid var(--line);border-radius:12px;
+    padding:16px;overflow-x:auto;font-size:13px;line-height:1.5}
+  pre code{background:none;padding:0}
+  .dot{display:inline-block;width:10px;height:10px;border-radius:50%;margin-right:7px;vertical-align:middle}
+  .d-calm{background:var(--calm)} .d-idle{background:var(--idle)}
+  .d-wait{background:var(--wait)} .d-ended{background:var(--ended)}
+  ul{padding-left:22px} li{margin:4px 0}
+  .callout{border:1px solid var(--line);border-left:3px solid var(--accent);
+    background:var(--panel);border-radius:10px;padding:14px 16px;margin:16px 0;font-size:14.5px}
+  .cards{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:12px;margin:16px 0}
+  .card{border:1px solid var(--line);border-radius:12px;padding:16px;background:var(--panel)}
+  .card h4{margin:0 0 6px;font-size:14px} .card p{margin:0;font-size:13.5px;color:var(--muted)}
+  a{color:var(--accent)}
+  .foot{margin-top:60px;color:var(--muted);font-size:13px;text-align:center}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+<header class="hero">
+  <div class="kicker">Design Spec · Inspired by gavraz/recon</div>
+  <h1>Homa</h1>
+  <div class="tag">The Persian bird that never lands — a monitor for a flock of always-running agents.</div>
+  <p class="lede">A featherweight Windows tray app that watches your Claude Code agents and tells you, at a glance, which ones need you — quiet while they work, loud when one goes idle or blocks on you, even while you game.</p>
+  <div class="meta">
+    <span class="chip">2026-07-24</span>
+    <span class="chip">Stack · Tauri (Rust + React/Tailwind)</span>
+    <span class="chip">Form · System tray + overlay</span>
+    <span class="chip">Status · Approved, pending review</span>
+  </div>
+</header>
+
+<section><h2><span class="n">1</span>Problem</h2>
+<p>Saeid runs several Claude Code agents at once, each in its own Windows Terminal tab. There is no single place to see which are working, which are blocked on him, and which have gone quiet. When he steps away to game, a finished or blocked agent can sit unnoticed for a long time.</p>
+<p><code>recon</code> solves this on Unix by sitting on tmux — enumerating sessions and scraping each pane's status bar. That substrate does not exist on Windows: no tmux, and Windows Terminal exposes <strong>no supported API</strong> to read tab or pane content. So Homa is not a port; it is a reimagining on a cleaner substrate.</p>
+</section>
+
+<section><h2><span class="n">2</span>Goal</h2>
+<ul>
+  <li>Read the live roster + status of every Claude Code session <strong>without touching the terminal</strong>.</li>
+  <li>Signal attention through a layered model that still works while a game runs.</li>
+  <li>Treat <strong>idle as an attention state</strong> (a finished agent awaiting its next task) — only <em>actively working</em> is calm.</li>
+  <li>Stay featherweight enough to run behind a fullscreen game without stealing meaningful RAM/CPU.</li>
+</ul>
+</section>
+
+<section><h2><span class="n">3</span>Substrate — the key finding</h2>
+<p>Windows Claude Code already writes a per-session status file. No terminal scraping required:</p>
+<p class="muted"><code>~/.claude/sessions/&lt;pid&gt;.json</code></p>
+<pre><code>{
+  "pid": 13732,
+  "sessionId": "1fe8e5c7-20c9-40cf-80b2-4f1c1968088b",
+  "cwd": "C:\\Users\\saeid\\Desktop\\Agent Simorgh",
+  "name": "agent-simorgh-61",
+  "status": "busy",
+  "startedAt": 1784898651809,
+  "statusUpdatedAt": 1784898664841,
+  "version": "2.1.218"
+}</code></pre>
+<p>This hands us the whole roster recon rebuilds from tmux — name, <code>cwd</code> (→ repo/branch), a live <code>status</code>, timestamps. The matching transcript <code>~/.claude/projects/&lt;slug&gt;/&lt;sessionId&gt;.jsonl</code> adds model, context %, and last-activity when we want it.</p>
+<div class="callout"><strong>Open item:</strong> the full set of <code>status</code> values must be enumerated empirically (only <code>busy</code> observed so far). The mapper must fail safe for any unrecognized value.</div>
+</section>
+
+<section><h2><span class="n">4</span>Form factor &amp; stack</h2>
+<div class="cards">
+  <div class="card"><h4>Form</h4><p>Tray app + summonable main window + optional always-on-top mini-pill overlay. Normally hidden; lives in the tray.</p></div>
+  <div class="card"><h4>Why Tauri, not Electron</h4><p>Uses Windows 11's built-in WebView2 → ~10 MB / low idle RAM. It must not compete with a running game; Electron's Chromium fails that test.</p></div>
+  <div class="card"><h4>Why Tauri, not C#/.NET</h4><p>The animated pixel-art tamagotchi is far faster to build in React/Tailwind. Rust handles only OS glue.</p></div>
+</div>
+</section>
+
+<section><h2><span class="n">5</span>Architecture</h2>
+<h3>Rust core</h3>
+<table>
+  <tr><th>Component</th><th>Responsibility</th></tr>
+  <tr><td>Poller</td><td><code>notify</code> file-watcher on the sessions dir for instant reaction + a ~2 s reconcile tick for in-place rewrites and process death.</td></tr>
+  <tr><td>Liveness checker</td><td>Cross-check each file's <code>pid</code> against running processes so a crashed session doesn't linger as fake "idle."</td></tr>
+  <tr><td>Status mapper</td><td>Normalize raw <code>status</code> into the 3-state model; unknown values fail <strong>toward attention</strong>.</td></tr>
+  <tr><td>Enricher (lazy)</td><td>Only while the window is open, read transcript tails for model / context % / last-activity. Skipped when hidden → near-idle during gaming.</td></tr>
+  <tr><td>Tray manager</td><td>Drive icon variant + badge and tray menu (show/hide, quit, per-session list).</td></tr>
+  <tr><td>Notifier</td><td>Native Windows toasts on transitions. Auto-suppressed in fullscreen games — intended.</td></tr>
+  <tr><td>Overlay controller</td><td>Show/hide + position the mini-pill overlay window.</td></tr>
+</table>
+<h3>React / Tailwind UI</h3>
+<ul>
+  <li><strong>Roster view</strong> — agents grouped by repo (from <code>cwd</code>): name, repo/branch, state, context %, last activity. (recon's table analog.)</li>
+  <li><strong>Tamagotchi view</strong> — each agent an animated pixel creature reflecting its state; toggle with roster.</li>
+  <li><strong>Mini-pill overlay</strong> — small frameless always-on-top window (§7).</li>
+</ul>
+</section>
+
+<section><h2><span class="n">6</span>Data flow</h2>
+<pre><code>~/.claude/sessions/*.json ──(notify + 2s reconcile)──▶ Poller
+        │  pid liveness (sysinfo)                          │
+        │  transcript tail (lazy, window-open only)        ▼
+        │                                          Status mapper ──▶ AgentState[]
+        └──▶ AgentState[] fans out to:
+               (a) Tray icon variant + badge
+               (b) Toast on state transition
+               (c) Tauri event ──▶ React: roster / tamagotchi / overlay</code></pre>
+</section>
+
+<section><h2><span class="n">7</span>State &amp; signaling model</h2>
+<p><strong>Only <em>working</em> is calm.</strong> Idle and waiting are both attention states, kept visually distinct.</p>
+<table>
+  <tr><th>State</th><th>Meaning</th><th>Tray</th><th>Toast</th><th>Overlay</th></tr>
+  <tr><td><span class="dot d-calm"></span>Working</td><td>Actively doing work</td><td>Calm blue/green</td><td>no</td><td>hidden</td></tr>
+  <tr><td><span class="dot d-idle"></span>Idle</td><td>Finished, unused — feed it</td><td>Amber, pulsing + count</td><td>"…is idle"</td><td>shown</td></tr>
+  <tr><td><span class="dot d-wait"></span>Waiting</td><td>Blocked on your input</td><td>Red + count</td><td>"…is waiting on you"</td><td>shown</td></tr>
+  <tr><td><span class="dot d-ended"></span>Ended</td><td>pid dead / gone</td><td>Grey, then dropped</td><td>no</td><td>hidden</td></tr>
+</table>
+<ul>
+  <li><strong>Tray icon</strong> shows the highest-priority state: <strong>waiting &gt; idle &gt; working</strong>. Accurate even in-game — a taskbar glance suffices.</li>
+  <li><strong>Toast</strong> on transitions, debounced. Suppressed in fullscreen games (intended).</li>
+  <li><strong>Sound</strong> — optional, off by default; configurable chime on waiting (optionally idle). Pierces games.</li>
+  <li><strong>Mini-pill overlay</strong> — draggable, corner-parkable, position persisted. Auto-shows only on attention, hides when all calm. Visible over borderless/windowed-fullscreen.</li>
+</ul>
+<div class="callout"><strong>Honest limit:</strong> <em>exclusive</em>-fullscreen games suppress every overlay — nothing on Windows defeats that. The tray glance and optional sound are the fallbacks there.</div>
+</section>
+
+<section><h2><span class="n">8</span>Error handling</h2>
+<table>
+  <tr><th>Condition</th><th>Behavior</th></tr>
+  <tr><td>Mid-write / partial JSON</td><td>Retry/skip; keep last good parse.</td></tr>
+  <tr><td>Dead pid, file present</td><td>Mark Ended, grey out, drop after grace.</td></tr>
+  <tr><td>Sessions dir missing / empty</td><td>Neutral tray + empty state.</td></tr>
+  <tr><td>Unknown <code>status</code></td><td>Treat as attention (don't hide).</td></tr>
+  <tr><td>Transcript missing / huge</td><td>Cap tail read; degrade to "no context info."</td></tr>
+  <tr><td>Enricher error</td><td>Roster still renders from the session file alone.</td></tr>
+</table>
+</section>
+
+<section><h2><span class="n">9</span>Testing</h2>
+<ul>
+  <li><strong>Rust unit tests</strong> — parser, status mapper, liveness against fixtures (well-formed, malformed, dead-pid, unknown-status).</li>
+  <li><strong>Replay / fixture mode</strong> — a fake sessions dir with scripted files to simulate <code>working → waiting → idle → ended</code> deterministically; drives tray, toast, and overlay.</li>
+  <li><strong>Frontend component tests</strong> — roster + tamagotchi per state; overlay show/hide.</li>
+  <li><strong>Manual smoke</strong> — real <code>claude</code> sessions end-to-end (type-check passing ≠ feature working).</li>
+</ul>
+</section>
+
+<section><h2><span class="n">10</span>Scope</h2>
+<div class="cards">
+  <div class="card"><h4>In — v1</h4><p>Tray app + main window · substrate poller (watch + reconcile + liveness + lazy enrichment) · 3-state model + Ended · tray icon variants + badges · toasts + optional sound · roster + tamagotchi views · <strong>mini-pill overlay</strong> · autostart + start-minimized.</p></div>
+  <div class="card"><h4>Out — later</h4><p>recon's session command suite (launch/resume/park) · "jump to that WT tab" (no supported API; best-effort window-foreground is a fast-follow) · history/usage graphs · multi-machine aggregation.</p></div>
+</div>
+</section>
+
+<section><h2><span class="n">11</span>Open items into planning</h2>
+<ul>
+  <li>Enumerate the real value set of the session <code>status</code> field.</li>
+  <li>Confirm transcript JSONL fields for context % / token usage.</li>
+  <li>Tune reconcile interval + enrichment throttle against real RAM/CPU while gaming.</li>
+  <li>Choose the tamagotchi art approach (sprite sheets vs CSS/SVG animation).</li>
+</ul>
+</section>
+
+<div class="foot">Homa · design spec · 2026-07-24</div>
+</div>
+</body>
+</html>
