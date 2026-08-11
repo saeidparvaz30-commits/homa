@@ -74,3 +74,49 @@ test("marks each row with its status for colouring", () => {
   render(<OverlayRoster />);
   expect(screen.getByTestId("row-dot")).toHaveAttribute("data-status", "waiting");
 });
+
+const oneRow = () => setAgents([mk({ session_id: "a", name: "homa", cwd: "C:\\Homa" })]);
+
+const edit = (value: string) => {
+  render(<OverlayRoster />);
+  fireEvent.doubleClick(screen.getByTestId("row-name"));
+  const box = screen.getByRole("textbox");
+  fireEvent.change(box, { target: { value } });
+  return box;
+};
+
+test("double click turns the name into an input seeded with the current name", () => {
+  oneRow();
+  render(<OverlayRoster />);
+  fireEvent.doubleClick(screen.getByTestId("row-name"));
+  expect(screen.getByRole("textbox")).toHaveValue("homa");
+});
+
+test("enter commits the new name against the row's cwd", () => {
+  vi.mocked(invoke).mockClear();
+  oneRow();
+  fireEvent.keyDown(edit("tray app"), { key: "Enter" });
+  expect(invoke).toHaveBeenCalledWith("set_alias", { cwd: "C:\\Homa", name: "tray app" });
+});
+
+test("escape cancels without saving", () => {
+  vi.mocked(invoke).mockClear();
+  oneRow();
+  fireEvent.keyDown(edit("discarded"), { key: "Escape" });
+  expect(invoke).not.toHaveBeenCalled();
+  expect(screen.queryByRole("textbox")).not.toBeInTheDocument();
+});
+
+test("an empty commit clears the alias rather than storing a blank", () => {
+  vi.mocked(invoke).mockClear();
+  oneRow();
+  fireEvent.keyDown(edit("   "), { key: "Enter" });
+  expect(invoke).toHaveBeenCalledWith("set_alias", { cwd: "C:\\Homa", name: "   " });
+});
+
+test("blur commits", () => {
+  vi.mocked(invoke).mockClear();
+  oneRow();
+  fireEvent.blur(edit("blurred"));
+  expect(invoke).toHaveBeenCalledWith("set_alias", { cwd: "C:\\Homa", name: "blurred" });
+});
