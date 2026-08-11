@@ -1,0 +1,233 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Homa v2 · Implementation Plan</title>
+<style>
+  :root{
+    --bg:#0f1115; --panel:#161a21; --panel-2:#1c222c; --ink:#e8ecf2; --muted:#9aa6b6;
+    --line:#2a323f; --accent:#7cc4ff; --calm:#4ea1ff; --idle:#f4b942; --wait:#ff5c6c;
+    --ended:#6b7686; --green:#54d693;
+  }
+  @media (prefers-color-scheme: light){
+    :root{ --bg:#f6f8fb; --panel:#ffffff; --panel-2:#f0f3f8; --ink:#182029; --muted:#5a6675;
+           --line:#e0e6ee; --accent:#1f6feb; --calm:#1f6feb; }
+  }
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--bg);color:var(--ink);
+    font:16px/1.6 -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif}
+  .wrap{max-width:940px;margin:0 auto;padding:48px 24px 96px}
+  header.hero{border:1px solid var(--line);border-radius:16px;padding:32px;
+    background:linear-gradient(160deg,var(--panel),var(--panel-2))}
+  .kicker{letter-spacing:.14em;text-transform:uppercase;font-size:12px;color:var(--muted)}
+  h1{font-size:38px;margin:.2em 0 .1em;letter-spacing:-.02em}
+  .lede{font-size:17px;margin-top:14px;max-width:62ch}
+  .meta{display:flex;flex-wrap:wrap;gap:8px;margin-top:20px}
+  .chip{font-size:12.5px;color:var(--muted);border:1px solid var(--line);
+    border-radius:999px;padding:4px 12px;background:var(--panel)}
+  h2{font-size:23px;margin:52px 0 8px;letter-spacing:-.01em}
+  h2 .n{color:var(--accent);font-variant-numeric:tabular-nums;margin-right:10px}
+  h3{font-size:16px;margin:24px 0 6px}
+  p{color:var(--ink)} .muted{color:var(--muted)}
+  section{border-top:1px solid var(--line);padding-top:8px}
+  table{width:100%;border-collapse:collapse;margin:14px 0;font-size:14.5px;
+    border-radius:10px;border:1px solid var(--line);overflow:hidden}
+  th,td{text-align:left;padding:10px 12px;border-bottom:1px solid var(--line);vertical-align:top}
+  th{background:var(--panel-2);color:var(--muted);font-weight:600;font-size:12.5px;
+    text-transform:uppercase;letter-spacing:.04em}
+  tr:last-child td{border-bottom:none}
+  code{font-family:"SF Mono",ui-monospace,"Cascadia Code",Consolas,monospace;
+    background:var(--panel-2);padding:.12em .4em;border-radius:6px;font-size:.88em}
+  ul{padding-left:20px} li{margin:5px 0}
+  .callout{border:1px solid var(--line);border-left:3px solid var(--accent);
+    background:var(--panel);border-radius:10px;padding:14px 16px;margin:16px 0;font-size:14.5px}
+  .task{border:1px solid var(--line);background:var(--panel);border-radius:12px;
+    padding:16px 18px;margin:12px 0;display:grid;grid-template-columns:44px 1fr;gap:14px}
+  .task .num{font-size:22px;font-weight:700;color:var(--accent);
+    font-variant-numeric:tabular-nums;line-height:1.2}
+  .task h4{margin:0 0 4px;font-size:16px}
+  .task p{margin:0 0 8px;font-size:14.5px;color:var(--muted)}
+  .files{font-size:12.5px;color:var(--muted)}
+  .files span{display:inline-block;border:1px solid var(--line);border-radius:6px;
+    padding:2px 7px;margin:3px 4px 0 0;background:var(--panel-2)}
+  .new{border-color:var(--green)!important;color:var(--green)!important}
+  .check{border:1px solid var(--line);background:var(--panel);border-radius:12px;padding:6px 18px;margin:16px 0}
+  .check li{list-style:none;padding-left:26px;position:relative;margin:9px 0;font-size:14.5px}
+  .check li:before{content:"";position:absolute;left:0;top:3px;width:15px;height:15px;
+    border:1.5px solid var(--muted);border-radius:4px}
+  .check ul{padding-left:0}
+  footer{margin-top:56px;padding-top:18px;border-top:1px solid var(--line);
+    color:var(--muted);font-size:13px}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+<header class="hero">
+  <div class="kicker">Implementation plan · 2026-08-11</div>
+  <h1>Homa v2: Named Roster</h1>
+  <p class="lede">
+    Eight TDD tasks. Rust first (store, resolution, lifecycle, wiring), then the overlay UI,
+    then the always visible window behaviour that has to be checked by eye.
+  </p>
+  <div class="meta">
+    <span class="chip">8 tasks</span>
+    <span class="chip">No new dependencies</span>
+    <span class="chip">Commit per task</span>
+    <span class="chip">Spec: 2026-08-11-named-roster-design</span>
+  </div>
+</header>
+
+<section>
+<h2><span class="n">01</span>Architecture</h2>
+<p>A new <code>alias.rs</code> owns a cwd keyed name store in <code>%APPDATA%\homa\aliases.json</code>.
+The poller applies aliases to <code>AgentState.name</code> during each scan, so every existing
+consumer (overlay, main window, toast text, sort order) inherits chosen names with no changes of
+its own. The overlay swaps its count pill for a roster component that renders one row per session,
+self sizes its window height to the row count, and writes names back through two new Tauri
+commands.</p>
+
+<div class="callout">
+  <strong>One thing the spec assumed that turned out to be free.</strong> The spec said the full
+  agent list "must be emitted to the overlay too". It already is: Tauri v2's <code>app.emit</code>
+  broadcasts to every webview, so <code>agents-updated</code> reaches the overlay window today.
+  The overlay just has to listen. No Rust plumbing needed.
+</div>
+
+<h3>Global constraints</h3>
+<ul>
+  <li><strong>No new dependencies</strong>, Rust or npm. If a task appears to need one, stop and ask.</li>
+  <li><strong>Homa never writes into <code>~/.claude</code>.</strong> All Homa state lives in <code>%APPDATA%\homa\</code>.</li>
+  <li><code>cargo</code> is not on PATH by default: prepend <code>$env:USERPROFILE\.cargo\bin</code>.</li>
+  <li>Rust tests from <code>src-tauri/</code> with <code>cargo test</code>; frontend from the root with <code>npm test</code>.</li>
+  <li>No em dashes in any string, comment, commit message, or doc.</li>
+</ul>
+</section>
+
+<section>
+<h2><span class="n">02</span>The eight tasks</h2>
+
+<div class="task">
+  <div class="num">1</div>
+  <div>
+    <h4>Map <code>shell</code> to Working</h4>
+    <p>The smallest change and probably the one you feel first. Stops every shell out from reading as "finished, feed me a task".</p>
+    <div class="files"><span>mapper.rs</span></div>
+  </div>
+</div>
+
+<div class="task">
+  <div class="num">2</div>
+  <div>
+    <h4>Alias store</h4>
+    <p>Key normalisation (case and separator tolerant), atomic write via temp file plus rename, corrupt and missing files loading as empty, blank names removing the entry rather than storing a blank. Persistence only, no consumers yet. 9 tests.</p>
+    <div class="files"><span class="new">+ alias.rs</span><span>lib.rs</span></div>
+  </div>
+</div>
+
+<div class="task">
+  <div class="num">3</div>
+  <div>
+    <h4>Name resolution and collisions</h4>
+    <p>Pure function over a slice: alias wins, else Claude's name, else the last path segment. Duplicates get <code>#1</code> / <code>#2</code> ordered by start time, ties broken on session id so numbering cannot flip between polls. 7 tests.</p>
+    <div class="files"><span>alias.rs</span><span>model.rs</span></div>
+  </div>
+</div>
+
+<div class="task">
+  <div class="num">4</div>
+  <div>
+    <h4>Reap ended sessions</h4>
+    <p>Stamp <code>ended_at</code> on first sighting, carry it forward rather than restamping, drop the row after 10s. Carrying is what keeps the poller from spinning on a change that is really no change. 6 tests.</p>
+    <div class="files"><span class="new">+ reap.rs</span><span>lib.rs</span></div>
+  </div>
+</div>
+
+<div class="task">
+  <div class="num">5</div>
+  <div>
+    <h4>Wire into the poller, expose commands</h4>
+    <p>Everything above is inert until the scan loop calls it. <code>scan_once_with</code> takes an injected alias map so it is testable; the integration test writes a fixture session file using the test process's own pid so it reads as alive. Adds <code>set_alias</code> and <code>get_aliases</code>.</p>
+    <div class="files"><span>poller.rs</span><span>main.rs</span></div>
+  </div>
+</div>
+
+<div class="task">
+  <div class="num">6</div>
+  <div>
+    <h4>Overlay roster component</h4>
+    <p>One row per session, sorted waiting then idle then working, muted "no sessions" empty state, window height following the row count and clamped before it can fill the screen. Deletes <code>OverlayPill.tsx</code>. 4 tests.</p>
+    <div class="files"><span class="new">+ OverlayRoster.tsx</span><span class="new">+ OverlayRoster.test.tsx</span><span>overlay.tsx</span><span>types.ts</span></div>
+  </div>
+</div>
+
+<div class="task">
+  <div class="num">7</div>
+  <div>
+    <h4>Inline rename</h4>
+    <p>Double click to edit, Enter commits, Escape cancels, blur commits, empty clears. The drag region moves off the container onto a dedicated grab strip, because a drag region swallows mouse events on Windows and would eat the double click. 5 tests.</p>
+    <div class="files"><span>OverlayRoster.tsx</span><span>OverlayRoster.test.tsx</span></div>
+  </div>
+</div>
+
+<div class="task">
+  <div class="num">8</div>
+  <div>
+    <h4>Always visible overlay with remembered position</h4>
+    <p>Shown once at startup, never hidden. Position saved on move and restored before show, so there is no visible jump. <code>focus: false</code> so it never steals focus. Then the manual checklist below.</p>
+    <div class="files"><span>overlay.rs</span><span>settings.rs</span><span>main.rs</span><span>poller.rs</span><span>tauri.conf.json</span><span>README.md</span></div>
+  </div>
+</div>
+</section>
+
+<section>
+<h2><span class="n">03</span>Order and why</h2>
+<table>
+  <tr><th>Stage</th><th>Tasks</th><th>Reasoning</th></tr>
+  <tr><td>Standalone win</td><td>1</td><td>Independent of everything else and fixes a live irritation on its own. Worth having even if the rest slipped.</td></tr>
+  <tr><td>Pure logic</td><td>2, 3, 4</td><td>No app, no window, no filesystem beyond a temp dir. Fully covered by fast unit tests before anything is wired.</td></tr>
+  <tr><td>Integration</td><td>5</td><td>The single point where the pure pieces meet the running loop. If something breaks, it broke here.</td></tr>
+  <tr><td>UI</td><td>6, 7</td><td>Display before interaction, so a failing rename test cannot be confused with a failing render.</td></tr>
+  <tr><td>Window behaviour</td><td>8</td><td>Last because it is the only part that cannot be asserted, and it needs everything else working to be judged.</td></tr>
+</table>
+</section>
+
+<section>
+<h2><span class="n">04</span>Manual checklist (Task 8)</h2>
+<p>This is the acceptance criterion for the whole plan. v1 shipped without this pass, and that is
+why we are here. Anything that fails gets fixed before the commit, not filed as follow up.</p>
+
+<div class="check">
+<ul>
+  <li>Overlay appears at startup with nothing needing attention</li>
+  <li>Lists live sessions by name, one row each</li>
+  <li>A new Claude session adds a row within about 2 seconds</li>
+  <li>A session going idle turns its dot amber, and the overlay does not move or hide</li>
+  <li>Toast and tray icon colour still fire as they did in v1</li>
+  <li>Double click lets you type, Enter saves, and the name survives a restart</li>
+  <li>Two live sessions in one folder show <code>name #1</code> and <code>name #2</code></li>
+  <li>Dragging the top strip moves it; after a restart it reappears where you left it</li>
+  <li>Does not appear in alt tab, does not appear in the taskbar</li>
+  <li>Clicking it does not pull focus from a focused terminal</li>
+  <li>Height matches the row count from one to five rows, then scrolls rather than growing past ~420px</li>
+  <li>With no sessions it shows "no sessions" and stays visible</li>
+  <li>Ending a session leaves a grey row that disappears about 10 seconds later</li>
+</ul>
+</div>
+
+<div class="callout">
+  <strong>Before running the dev build,</strong> kill the installed v1: it is currently running, and
+  <code>tauri_plugin_single_instance</code> will refuse a second copy.
+  <code>Stop-Process -Name homa -Force</code>
+</div>
+</section>
+
+<footer>
+  Homa · implementation plan 2026-08-11 · full step-by-step code in
+  <code>docs/superpowers/plans/2026-08-11-named-roster.md</code>
+</footer>
+
+</div>
+</body>
+</html>
