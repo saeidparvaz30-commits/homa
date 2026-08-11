@@ -25,7 +25,8 @@ distinctly, because an idle agent is one that finished and is waiting for its ne
   waiting/blocked status -> Waiting. Unknown values fail toward attention.
 - **Signals:** tray icon color (blue working, amber idle, red waiting), tray tooltip
   counts, Windows toasts on transitions, an optional sound, and an always-on-top
-  mini-pill overlay that auto-shows only when something needs attention.
+  overlay that stays visible as a permanent dashboard, listing every live session
+  by name with a colored dot for its state.
 
 Tray priority is Waiting > Idle > Working. The tray icon always reflects the most
 urgent agent.
@@ -64,6 +65,14 @@ Optional sound is off by default. To enable it, edit
 
 `sound_enabled` plays a chime on the waiting transition; set `sound_on_idle` to also
 chime when an agent goes idle.
+
+## Naming sessions
+
+Each row in the overlay shows a name derived from the session's working folder.
+Double click a row to rename it. Names are per folder, so every session started
+from that folder picks up the same name until it is changed again. Press Enter
+to save; the name is written to `%APPDATA%\homa\aliases.json`. Saving an empty
+name clears the alias and the row falls back to the folder-derived name.
 
 ## Replay mode (deterministic testing)
 

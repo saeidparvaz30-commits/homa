@@ -127,7 +127,6 @@ pub fn start_watching(app: AppHandle, shared: Shared) {
                 let _ = app.emit("agents-updated", &next);
                 let _ = app.emit("tray-summary", &summary);
                 crate::tray::apply(&app, &summary);
-                crate::overlay::drive(&app, &summary);
                 *shared.lock().unwrap() = next;
             }
             // Drain any queued file events (non-blocking), then wait the reconcile interval.

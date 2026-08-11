@@ -7,7 +7,7 @@ use tauri::menu::{Menu, MenuItem};
 use tauri::tray::{MouseButton, MouseButtonState, TrayIconBuilder, TrayIconEvent};
 use tauri::{Manager, WindowEvent};
 
-use homa_lib::{model::AgentState, poller};
+use homa_lib::{model::AgentState, overlay, poller};
 
 #[tauri::command]
 fn get_agents(state: tauri::State<poller::Shared>) -> Vec<AgentState> {
@@ -106,6 +106,15 @@ fn main() {
                 use tauri_plugin_autostart::ManagerExt;
                 let _ = app.autolaunch().enable();
             }
+
+            if let Some(w) = app.get_webview_window("overlay") {
+                w.on_window_event(move |e| {
+                    if let WindowEvent::Moved(pos) = e {
+                        overlay::remember_position(pos.x as f64, pos.y as f64);
+                    }
+                });
+            }
+            overlay::restore_and_show(&app.handle().clone());
 
             poller::start_watching(app.handle().clone(), shared_setup.clone());
             Ok(())
