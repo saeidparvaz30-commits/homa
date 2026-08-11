@@ -1,0 +1,290 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Homa v2 · Named Session Roster</title>
+<style>
+  :root{
+    --bg:#0f1115; --panel:#161a21; --panel-2:#1c222c; --ink:#e8ecf2; --muted:#9aa6b6;
+    --line:#2a323f; --accent:#7cc4ff; --calm:#4ea1ff; --idle:#f4b942; --wait:#ff5c6c;
+    --ended:#6b7686; --green:#54d693;
+  }
+  @media (prefers-color-scheme: light){
+    :root{ --bg:#f6f8fb; --panel:#ffffff; --panel-2:#f0f3f8; --ink:#182029; --muted:#5a6675;
+           --line:#e0e6ee; --accent:#1f6feb; --calm:#1f6feb; }
+  }
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--bg);color:var(--ink);
+    font:16px/1.6 -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif}
+  .wrap{max-width:920px;margin:0 auto;padding:48px 24px 96px}
+  header.hero{border:1px solid var(--line);border-radius:16px;padding:32px;
+    background:linear-gradient(160deg,var(--panel),var(--panel-2))}
+  .kicker{letter-spacing:.14em;text-transform:uppercase;font-size:12px;color:var(--muted)}
+  h1{font-size:40px;margin:.2em 0 .1em;letter-spacing:-.02em}
+  .tag{color:var(--muted);font-size:15px}
+  .lede{font-size:18px;color:var(--ink);margin-top:16px;max-width:62ch}
+  .meta{display:flex;flex-wrap:wrap;gap:8px;margin-top:20px}
+  .chip{font-size:12.5px;color:var(--muted);border:1px solid var(--line);
+    border-radius:999px;padding:4px 12px;background:var(--panel)}
+  h2{font-size:24px;margin:52px 0 8px;letter-spacing:-.01em}
+  h2 .n{color:var(--accent);font-variant-numeric:tabular-nums;margin-right:10px}
+  h3{font-size:17px;margin:26px 0 6px;color:var(--ink)}
+  p{color:var(--ink)} .muted{color:var(--muted)}
+  section{border-top:1px solid var(--line);padding-top:8px}
+  table{width:100%;border-collapse:collapse;margin:14px 0;font-size:14.5px;
+    overflow:hidden;border-radius:10px;border:1px solid var(--line)}
+  th,td{text-align:left;padding:10px 12px;border-bottom:1px solid var(--line);vertical-align:top}
+  th{background:var(--panel-2);color:var(--muted);font-weight:600;font-size:12.5px;
+    text-transform:uppercase;letter-spacing:.04em}
+  tr:last-child td{border-bottom:none}
+  code,pre{font-family:"SF Mono",ui-monospace,"Cascadia Code",Consolas,monospace}
+  code{background:var(--panel-2);padding:.12em .4em;border-radius:6px;font-size:.9em}
+  pre{background:var(--panel);border:1px solid var(--line);border-radius:12px;
+    padding:16px;overflow-x:auto;font-size:13px;line-height:1.5}
+  pre code{background:none;padding:0}
+  .dot{display:inline-block;width:10px;height:10px;border-radius:50%;margin-right:9px;vertical-align:middle;flex:none}
+  .d-calm{background:var(--calm)} .d-idle{background:var(--idle)}
+  .d-wait{background:var(--wait)} .d-ended{background:var(--ended)}
+  ul{padding-left:22px} li{margin:5px 0}
+  .callout{border:1px solid var(--line);border-left:3px solid var(--accent);
+    background:var(--panel);border-radius:10px;padding:14px 16px;margin:16px 0;font-size:14.5px}
+  .callout.warn{border-left-color:var(--idle)}
+  .cards{display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:14px;margin:18px 0}
+  .card{border:1px solid var(--line);background:var(--panel);border-radius:12px;padding:16px}
+  .card h4{margin:0 0 6px;font-size:14px;letter-spacing:.02em}
+  .card p{margin:0;font-size:14px;color:var(--muted)}
+  .mock{border:1px solid var(--line);background:var(--panel);border-radius:12px;
+    padding:14px;max-width:300px;margin:18px 0;box-shadow:0 8px 30px rgba(0,0,0,.25)}
+  .mock .row{display:flex;align-items:center;padding:7px 8px;border-radius:8px;font-size:14.5px}
+  .mock .row:hover{background:var(--panel-2)}
+  .mock .row.editing{background:var(--panel-2)}
+  .mock .field{border:1px solid var(--accent);border-radius:6px;padding:2px 8px;
+    background:var(--bg);font-size:14px;flex:1}
+  .mock .cap{font-size:12px;color:var(--muted);padding:4px 8px 0}
+  .before-after{display:grid;grid-template-columns:1fr 1fr;gap:18px;margin:18px 0}
+  @media (max-width:640px){ .before-after{grid-template-columns:1fr} h1{font-size:30px} }
+  .ba h4{margin:0 0 10px;font-size:12.5px;text-transform:uppercase;letter-spacing:.08em;color:var(--muted)}
+  .pill{display:inline-flex;align-items:center;gap:8px;background:var(--wait);color:#fff;
+    font-weight:600;padding:12px 18px;border-radius:14px;font-size:15px}
+  footer{margin-top:60px;padding-top:18px;border-top:1px solid var(--line);
+    color:var(--muted);font-size:13px}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+<header class="hero">
+  <div class="kicker">Design spec · 2026-08-11</div>
+  <h1>Homa v2: Named Session Roster</h1>
+  <div class="tag">Windows tray monitor for Claude Code sessions</div>
+  <p class="lede">
+    v1 tells you <em>how many</em> sessions want attention. v2 tells you <em>which ones</em>,
+    by names you chose yourself, in a list that is always on screen.
+  </p>
+  <div class="meta">
+    <span class="chip">Status: approved design</span>
+    <span class="chip">Next: implementation plan</span>
+    <span class="chip">Supersedes parts of 2026-07-24-homa-design</span>
+  </div>
+</header>
+
+<section>
+<h2><span class="n">01</span>Problem</h2>
+
+<p>Homa v1 shipped and has been running for roughly two weeks. Two things make it
+unhelpful in daily use.</p>
+
+<h3>Names are meaningless</h3>
+<p>Claude writes its own <code>name</code> into each session file, auto generated from the
+working directory plus a counter: <code>agent-simorgh-61</code>. Homa displays that verbatim
+(<code>RosterView.tsx:23</code>). Reading it does not tell you which session is which piece of work.</p>
+
+<h3>The surface you glance at carries no names at all</h3>
+<p>The always on top overlay is a count pill (<code>OverlayPill.tsx:31</code>). It says how many
+things want attention but not which, so every alert costs a context switch into the main
+window just to find out what fired.</p>
+
+<div class="before-after">
+  <div class="ba">
+    <h4>Today</h4>
+    <span class="pill"><span class="dot" style="background:#fff;margin:0"></span> 2 waiting</span>
+    <p class="muted" style="font-size:14px;margin-top:12px">Which two?</p>
+  </div>
+  <div class="ba">
+    <h4>v2</h4>
+    <div class="mock" style="margin-top:0">
+      <div class="row"><span class="dot d-wait"></span> migration site</div>
+      <div class="row"><span class="dot d-wait"></span> cv rewrite</div>
+      <div class="row"><span class="dot d-calm"></span> nnx guides</div>
+      <div class="row"><span class="dot d-idle"></span> homa</div>
+    </div>
+  </div>
+</div>
+
+<div class="callout warn">
+  <strong>A latent irritant.</strong> <code>mapper.rs:21</code> routes any unrecognised status to
+  <code>Idle</code>, on the principle of failing toward attention. The observed status log now
+  contains a <code>shell</code> value that v1 never saw. So every time a session shells out it reads
+  as idle, which in Homa's vocabulary means "finished, feed it a task". A false alarm on a
+  recurring event.
+</div>
+</section>
+
+<section>
+<h2><span class="n">02</span>Goals</h2>
+<div class="cards">
+  <div class="card"><h4>Chosen names</h4><p>Every session shows a name you picked.</p></div>
+  <div class="card"><h4>Typed once</h4><p>A name persists across future sessions without retyping.</p></div>
+  <div class="card"><h4>Zero clicks</h4><p>The named list is visible without opening anything.</p></div>
+  <div class="card"><h4>Fewer false alarms</h4><p>Shell activity stops reading as "needs you".</p></div>
+</div>
+
+<h3>Non goals</h3>
+<ul>
+  <li>Writing anything into <code>~/.claude</code>. Homa stays strictly read only against Claude's
+      files; names live in Homa's own store.</li>
+  <li>Reworking the main window or the Tamagotchi view. They inherit names for free.</li>
+  <li>Changing toast, sound, or tray colour logic.</li>
+</ul>
+</section>
+
+<section>
+<h2><span class="n">03</span>Alias store</h2>
+<p>New module <code>src-tauri/src/alias.rs</code>, backed by <code>%APPDATA%\homa\aliases.json</code>.</p>
+
+<pre><code>{
+  "c:\\users\\saeid\\desktop\\migration site": "migration site",
+  "c:\\users\\saeid\\desktop\\claude projects\\homa": "homa"
+}</code></pre>
+
+<div class="callout">
+  <strong>Scope: the working directory, not the session.</strong> A session ID is created fresh on
+  every run, so a session scoped name would have to be retyped daily. A cwd scoped name is typed
+  once and every future session in that folder inherits it. This is the decision that makes
+  renaming worth building at all.
+</div>
+
+<table>
+  <tr><th>Concern</th><th>Decision</th></tr>
+  <tr><td>Key normalisation</td><td>Lowercase, separators normalised, trailing separator stripped. Windows path comparison is case insensitive and the same folder arrives spelled differently depending on how the session started.</td></tr>
+  <tr><td>Collisions</td><td>Two live sessions in one folder resolve to the same alias. Display appends <code>#1</code>, <code>#2</code> ordered by <code>started_at</code> ascending, so numbering stays stable rather than flipping between polls.</td></tr>
+  <tr><td>Writes</td><td>Atomic: serialise to a temp file in the same directory, then rename over the target. Rewritten whole on each change.</td></tr>
+  <tr><td>Failure</td><td>Malformed or missing file loads as an empty map rather than failing, matching how <code>settings.rs</code> already degrades.</td></tr>
+</table>
+
+<h3>Resolution order</h3>
+<p>Applied in the enrichment step, so overlay, main window, and toast text all see the same name.</p>
+<ul>
+  <li>Alias for the session's cwd, plus collision suffix if needed</li>
+  <li>Otherwise Claude's <code>session.name</code></li>
+  <li>Otherwise the last path segment of cwd</li>
+</ul>
+
+<h3>Commands exposed to the frontend</h3>
+<ul>
+  <li><code>set_alias(cwd, name)</code> — trims input; an empty or whitespace only name removes the entry rather than storing a blank</li>
+  <li><code>get_aliases()</code></li>
+</ul>
+</section>
+
+<section>
+<h2><span class="n">04</span>Overlay becomes the roster</h2>
+<p><code>OverlayPill.tsx</code> is replaced by <code>OverlayRoster.tsx</code>.</p>
+
+<table>
+  <tr><th>Aspect</th><th>Behaviour</th></tr>
+  <tr><td>Visibility</td><td><strong>Always on.</strong> <code>overlay::drive</code> no longer shows and hides on attention state. Shown once at startup and stays up. Attention is signalled by dot colour plus the existing toast, sound, and tray colour, all unchanged. The list is a dashboard; the alerts remain alerts.</td></tr>
+  <tr><td>Layout</td><td>One row per live session: status dot, then name. Sorted by status priority descending (waiting, idle, working, ended), then by name for a stable order inside a group.</td></tr>
+  <tr><td>Data</td><td>The overlay currently receives only the <code>tray-summary</code> count event. The full <code>AgentState</code> list must be emitted to it too. The main window already consumes this via <code>useAgents</code>.</td></tr>
+  <tr><td>Sizing</td><td>Height set from row count on each update, clamped to a maximum after which the list scrolls, so a burst of sessions cannot grow it to fill the screen. Fixed width.</td></tr>
+  <tr><td>Position</td><td>Dragged position persisted to settings, restored at startup. An always visible window that resets position every launch would be worse than the pill it replaces.</td></tr>
+  <tr><td>Focus</td><td>Shown without stealing focus. Must not appear in the taskbar or alt tab. Clickable for renaming, never interrupting a game or terminal.</td></tr>
+  <tr><td>Ended sessions</td><td>Stay as a grey row for roughly 10 seconds after the process dies, then disappear. Long enough to notice an exit, short enough that the list does not accumulate corpses.</td></tr>
+  <tr><td>Empty state</td><td>With no live sessions the overlay collapses to a single muted "no sessions" row. It does not hide. Hiding on empty would mean the window vanishes and reappears through the day, which is the behaviour this design removes, and would leave nothing to drag when repositioning.</td></tr>
+</table>
+
+<h3>Colour vocabulary (unchanged from v1)</h3>
+<ul>
+  <li><span class="dot d-wait"></span> waiting on you</li>
+  <li><span class="dot d-idle"></span> idle, finished its turn</li>
+  <li><span class="dot d-calm"></span> working, the calm state</li>
+  <li><span class="dot d-ended"></span> ended</li>
+</ul>
+</section>
+
+<section>
+<h2><span class="n">05</span>Rename in place</h2>
+<p>Double click a row. The name becomes a text input seeded with the current value and selected.
+Enter commits, Escape cancels, blur commits. An empty value clears the alias and the row falls
+back to Claude's name on the next poll.</p>
+
+<div class="mock">
+  <div class="row"><span class="dot d-wait"></span> migration site</div>
+  <div class="row editing"><span class="dot d-calm"></span> <input class="field" value="nnx guides" readonly></div>
+  <div class="row"><span class="dot d-idle"></span> homa</div>
+  <div class="cap">Enter saves · Esc cancels · empty resets</div>
+</div>
+
+<p>Committing calls <code>set_alias</code> with the row's cwd. Because the store is cwd keyed,
+renaming one row immediately renames every other live session in the same folder. This is
+intended, and the collision suffixes make the result readable.</p>
+</section>
+
+<section>
+<h2><span class="n">06</span>Status mapping fix</h2>
+<p><code>shell</code> maps to <code>Working</code>.</p>
+<p>It appears in the observed status log interleaved with <code>busy</code> and <code>idle</code>,
+and corresponds to the session running a shell command, which is work in progress rather than a
+finished turn. Mapping it to <code>Working</code> removes a recurring false attention signal.</p>
+<p>The unknown status fallback stays as it is. Failing toward attention is still right for a value
+nobody has seen yet; the fix is that <code>shell</code> is no longer unknown. <code>probe.rs</code>
+keeps logging distinct raw statuses so the next unseen value is caught the same way this one was.</p>
+</section>
+
+<section>
+<h2><span class="n">07</span>Testing</h2>
+
+<h3>Rust</h3>
+<ul>
+  <li>Alias key normalisation across case and separator variants</li>
+  <li>Name resolution precedence including the full fallback chain</li>
+  <li>Collision suffixing, and its stability across repeated resolution</li>
+  <li>Atomic write followed by read back</li>
+  <li>Corrupt and absent alias files loading as empty</li>
+  <li><code>map_status("shell", true)</code> returning <code>Working</code>, alongside existing mapper tests</li>
+</ul>
+
+<h3>Frontend</h3>
+<ul>
+  <li>Roster rows render in priority order</li>
+  <li>Double click enters edit mode</li>
+  <li>Enter commits and invokes the command with the row's cwd</li>
+  <li>Escape cancels without invoking</li>
+  <li>An empty commit clears rather than storing blank</li>
+</ul>
+
+<h3>Manual</h3>
+<p>The part that cannot be asserted: overlay stays up across status changes, does not steal focus,
+does not appear in alt tab, sizes correctly from one row to many, and restores its position after a
+restart. <strong>This is what v1 never got, and it is where the real verdict on v2 lives.</strong></p>
+</section>
+
+<section>
+<h2><span class="n">08</span>Risks</h2>
+<table>
+  <tr><th>Risk</th><th>Mitigation</th></tr>
+  <tr><td>Always visible costs screen space permanently</td><td>Fixed narrow width, auto height, remembered position. If it proves intrusive while gaming, the fallback is the collapse to a thin bar variant, which was considered and set aside. Nothing here blocks adding it later.</td></tr>
+  <tr><td>The <code>shell</code> reading could be wrong</td><td>If <code>shell</code> means blocked on a shell command needing input, <code>Working</code> would hide a real attention state. The observed status log will show it, and the change is one line in <code>WAITING_STATUSES</code>.</td></tr>
+  <tr><td>Renaming affects sibling sessions</td><td>By design, but surprising the first time two sessions in one repo rename together. The <code>#1</code> and <code>#2</code> suffixes are what make it legible.</td></tr>
+</table>
+</section>
+
+<footer>
+  Homa · design spec 2026-08-11 · companion to
+  <code>docs/superpowers/specs/2026-08-11-named-roster-design.md</code>
+</footer>
+
+</div>
+</body>
+</html>
