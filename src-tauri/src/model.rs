@@ -35,6 +35,8 @@ pub struct AgentState {
     pub model: Option<String>,
     pub context_pct: Option<f32>,
     pub last_activity: Option<i64>,
+    /// Wall clock ms when this session was first observed dead. Set by `reap`.
+    pub ended_at: Option<i64>,
 }
 
 #[cfg(test)]

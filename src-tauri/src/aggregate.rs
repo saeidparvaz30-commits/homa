@@ -79,6 +79,7 @@ mod tests {
             model: None,
             context_pct: None,
             last_activity: None,
+            ended_at: None,
         }
     }
 

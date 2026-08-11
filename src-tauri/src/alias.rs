@@ -58,6 +58,52 @@ pub fn set_in(p: &Path, cwd: &str, name: &str) -> std::io::Result<Aliases> {
     Ok(a)
 }
 
+use crate::model::AgentState;
+
+pub fn last_segment(cwd: &str) -> String {
+    cwd.trim_end_matches(['\\', '/'])
+        .rsplit(['\\', '/'])
+        .next()
+        .unwrap_or("")
+        .to_string()
+}
+
+/// Rewrites `name` on every agent to the name the user should see, then
+/// disambiguates any duplicates. Runs on every scan, so it must be cheap
+/// and its output must be stable for identical input.
+pub fn resolve(agents: &mut [AgentState], aliases: &Aliases) {
+    for a in agents.iter_mut() {
+        let alias = aliases
+            .get(&normalize_key(&a.cwd))
+            .map(String::as_str)
+            .filter(|s| !s.trim().is_empty());
+        a.name = match alias {
+            Some(s) => s.to_string(),
+            None if !a.name.trim().is_empty() => a.name.trim().to_string(),
+            None => last_segment(&a.cwd),
+        };
+    }
+
+    let mut groups: BTreeMap<String, Vec<usize>> = BTreeMap::new();
+    for (i, a) in agents.iter().enumerate() {
+        groups.entry(a.name.clone()).or_default().push(i);
+    }
+    for (_, mut idxs) in groups {
+        if idxs.len() < 2 {
+            continue;
+        }
+        idxs.sort_by(|&x, &y| {
+            agents[x]
+                .started_at
+                .cmp(&agents[y].started_at)
+                .then_with(|| agents[x].session_id.cmp(&agents[y].session_id))
+        });
+        for (n, i) in idxs.into_iter().enumerate() {
+            agents[i].name = format!("{} #{}", agents[i].name, n + 1);
+        }
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -130,5 +176,101 @@ mod tests {
         let p = tmpdir("mkparent").join("nested").join("aliases.json");
         set_in(&p, "C:\\Foo", "ok").unwrap();
         assert!(p.exists());
+    }
+
+    use crate::model::{AgentState, AgentStatus};
+
+    fn agent(cwd: &str, claude_name: &str, started_at: i64, sid: &str) -> AgentState {
+        AgentState {
+            pid: 1,
+            session_id: sid.to_string(),
+            name: claude_name.to_string(),
+            cwd: cwd.to_string(),
+            repo: "r".into(),
+            branch: None,
+            status: AgentStatus::Working,
+            raw_status: "busy".into(),
+            started_at,
+            status_updated_at: 0,
+            model: None,
+            context_pct: None,
+            last_activity: None,
+            ended_at: None,
+        }
+    }
+
+    #[test]
+    fn alias_wins_over_claude_name() {
+        let mut a = Aliases::new();
+        a.insert(normalize_key("C:\\Foo"), "my project".into());
+        let mut v = vec![agent("C:\\Foo", "agent-foo-61", 100, "s1")];
+        resolve(&mut v, &a);
+        assert_eq!(v[0].name, "my project");
+    }
+
+    #[test]
+    fn falls_back_to_claude_name_when_no_alias() {
+        let mut v = vec![agent("C:\\Foo", "agent-foo-61", 100, "s1")];
+        resolve(&mut v, &Aliases::new());
+        assert_eq!(v[0].name, "agent-foo-61");
+    }
+
+    #[test]
+    fn falls_back_to_last_path_segment_when_claude_name_blank() {
+        let mut v = vec![agent("C:\\Users\\saeid\\Migration Site", "  ", 100, "s1")];
+        resolve(&mut v, &Aliases::new());
+        assert_eq!(v[0].name, "Migration Site");
+    }
+
+    #[test]
+    fn two_sessions_in_one_folder_are_suffixed_by_start_order() {
+        let mut a = Aliases::new();
+        a.insert(normalize_key("C:\\Foo"), "homa".into());
+        let mut v = vec![
+            agent("C:\\Foo", "agent-foo-62", 200, "s2"),
+            agent("c:/foo/", "agent-foo-61", 100, "s1"),
+        ];
+        resolve(&mut v, &a);
+        let older = v.iter().find(|x| x.session_id == "s1").unwrap();
+        let newer = v.iter().find(|x| x.session_id == "s2").unwrap();
+        assert_eq!(older.name, "homa #1");
+        assert_eq!(newer.name, "homa #2");
+    }
+
+    #[test]
+    fn single_session_gets_no_suffix() {
+        let mut a = Aliases::new();
+        a.insert(normalize_key("C:\\Foo"), "homa".into());
+        let mut v = vec![agent("C:\\Foo", "agent-foo-61", 100, "s1")];
+        resolve(&mut v, &a);
+        assert_eq!(v[0].name, "homa");
+    }
+
+    #[test]
+    fn suffix_order_is_stable_when_start_times_tie() {
+        let mut a = Aliases::new();
+        a.insert(normalize_key("C:\\Foo"), "homa".into());
+        let mut v = vec![
+            agent("C:\\Foo", "x", 100, "sB"),
+            agent("C:\\Foo", "x", 100, "sA"),
+        ];
+        resolve(&mut v, &a);
+        // Ties break on session_id so numbering does not flip between polls.
+        assert_eq!(v.iter().find(|x| x.session_id == "sA").unwrap().name, "homa #1");
+        assert_eq!(v.iter().find(|x| x.session_id == "sB").unwrap().name, "homa #2");
+    }
+
+    #[test]
+    fn different_folders_sharing_a_name_are_also_disambiguated() {
+        let mut a = Aliases::new();
+        a.insert(normalize_key("C:\\Foo"), "work".into());
+        a.insert(normalize_key("C:\\Bar"), "work".into());
+        let mut v = vec![
+            agent("C:\\Foo", "x", 100, "s1"),
+            agent("C:\\Bar", "y", 200, "s2"),
+        ];
+        resolve(&mut v, &a);
+        assert_eq!(v[0].name, "work #1");
+        assert_eq!(v[1].name, "work #2");
     }
 }

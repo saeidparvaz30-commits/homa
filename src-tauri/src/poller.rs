@@ -72,6 +72,7 @@ pub fn scan_once(dir: &Path, enrich: bool) -> Vec<AgentState> {
             model: None,
             context_pct: None,
             last_activity: None,
+            ended_at: None,
         };
         if enrich && alive {
             let e = enrich_from_path(&transcript_path(&s.cwd, &s.session_id));
