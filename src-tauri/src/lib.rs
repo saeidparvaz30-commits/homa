@@ -1,3 +1,4 @@
+pub mod alias;
 pub mod aggregate;
 pub mod derive;
 pub mod enrich;
