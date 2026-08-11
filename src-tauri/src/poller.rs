@@ -7,6 +7,7 @@ use notify::{RecommendedWatcher, RecursiveMode, Watcher};
 use tauri::{AppHandle, Emitter, Manager};
 
 use crate::aggregate::{summarize, transitions};
+use crate::alias::{self, Aliases};
 use crate::{
     derive::repo_from_cwd, enrich::enrich_from_path, liveness::pid_alive, mapper::map_status,
     model::AgentState, session::parse_session,
@@ -34,7 +35,7 @@ fn transcript_path(cwd: &str, session_id: &str) -> PathBuf {
         .join(format!("{session_id}.jsonl"))
 }
 
-pub fn scan_once(dir: &Path, enrich: bool) -> Vec<AgentState> {
+pub fn scan_once_with(dir: &Path, enrich: bool, aliases: &Aliases) -> Vec<AgentState> {
     let mut sys = System::new();
     sys.refresh_processes(sysinfo::ProcessesToUpdate::All);
     let mut out = Vec::new();
@@ -82,6 +83,7 @@ pub fn scan_once(dir: &Path, enrich: bool) -> Vec<AgentState> {
         }
         out.push(st);
     }
+    alias::resolve(&mut out, aliases);
     out.sort_by(|a, b| {
         b.status
             .priority()
@@ -89,6 +91,10 @@ pub fn scan_once(dir: &Path, enrich: bool) -> Vec<AgentState> {
             .then(a.name.cmp(&b.name))
     });
     out
+}
+
+pub fn scan_once(dir: &Path, enrich: bool) -> Vec<AgentState> {
+    scan_once_with(dir, enrich, &alias::load())
 }
 
 pub fn start_watching(app: AppHandle, shared: Shared) {
@@ -108,8 +114,9 @@ pub fn start_watching(app: AppHandle, shared: Shared) {
                 .get_webview_window("main")
                 .and_then(|w| w.is_visible().ok())
                 .unwrap_or(false);
-            let next = scan_once(&dir, window_visible);
             let prev = { shared.lock().unwrap().clone() };
+            let mut next = scan_once(&dir, window_visible);
+            crate::reap::reap(&prev, &mut next, crate::reap::now_ms(), crate::reap::ENDED_TTL_MS);
             if next != prev {
                 let summary = summarize(&next);
                 let settings = crate::settings::Settings::load();
@@ -128,4 +135,46 @@ pub fn start_watching(app: AppHandle, shared: Shared) {
             std::thread::sleep(Duration::from_millis(2000));
         }
     });
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn scan_once_applies_aliases_to_names() {
+        let dir = std::env::temp_dir().join("homa-poller-test");
+        let _ = std::fs::remove_dir_all(&dir);
+        std::fs::create_dir_all(&dir).unwrap();
+
+        // Use this test process's own pid so the session reads as alive.
+        let pid = std::process::id();
+        let cwd = "C:\\Homa\\Test\\Folder";
+        let json = format!(
+            r#"{{"pid":{pid},"sessionId":"abc","cwd":"C:\\Homa\\Test\\Folder","startedAt":1,"name":"agent-folder-61","status":"busy","statusUpdatedAt":1}}"#
+        );
+        std::fs::write(dir.join(format!("{pid}.json")), json).unwrap();
+
+        let mut aliases = crate::alias::Aliases::new();
+        aliases.insert(crate::alias::normalize_key(cwd), "renamed".into());
+
+        let got = scan_once_with(&dir, false, &aliases);
+        assert_eq!(got.len(), 1, "expected the fixture session to be picked up");
+        assert_eq!(got[0].name, "renamed");
+    }
+
+    #[test]
+    fn scan_once_without_alias_keeps_claude_name() {
+        let dir = std::env::temp_dir().join("homa-poller-test-noalias");
+        let _ = std::fs::remove_dir_all(&dir);
+        std::fs::create_dir_all(&dir).unwrap();
+        let pid = std::process::id();
+        let json = format!(
+            r#"{{"pid":{pid},"sessionId":"abc","cwd":"C:\\Homa\\Other","startedAt":1,"name":"agent-other-9","status":"busy","statusUpdatedAt":1}}"#
+        );
+        std::fs::write(dir.join(format!("{pid}.json")), json).unwrap();
+
+        let got = scan_once_with(&dir, false, &crate::alias::Aliases::new());
+        assert_eq!(got[0].name, "agent-other-9");
+    }
 }

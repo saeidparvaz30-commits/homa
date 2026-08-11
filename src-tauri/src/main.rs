@@ -14,6 +14,18 @@ fn get_agents(state: tauri::State<poller::Shared>) -> Vec<AgentState> {
     state.lock().unwrap().clone()
 }
 
+#[tauri::command]
+fn set_alias(cwd: String, name: String) -> Result<(), String> {
+    homa_lib::alias::set_in(&homa_lib::alias::aliases_path(), &cwd, &name)
+        .map(|_| ())
+        .map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+fn get_aliases() -> homa_lib::alias::Aliases {
+    homa_lib::alias::load()
+}
+
 fn toggle_main(app: &tauri::AppHandle) {
     if let Some(w) = app.get_webview_window("main") {
         if w.is_visible().unwrap_or(false) {
@@ -38,7 +50,7 @@ fn main() {
             None,
         ))
         .manage(shared)
-        .invoke_handler(tauri::generate_handler![get_agents])
+        .invoke_handler(tauri::generate_handler![get_agents, set_alias, get_aliases])
         .setup(move |app| {
             let show = MenuItem::with_id(app, "show", "Show Homa", true, None::<&str>)?;
             let quit = MenuItem::with_id(app, "quit", "Quit", true, None::<&str>)?;
