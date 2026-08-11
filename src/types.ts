@@ -14,6 +14,7 @@ export interface AgentState {
   model: string | null;
   context_pct: number | null;
   last_activity: number | null;
+  ended_at: number | null;
 }
 
 export interface TraySummary {

@@ -16,6 +16,7 @@ const mk = (over: Partial<AgentState>): AgentState => ({
   model: "claude-fable-5",
   context_pct: 50,
   last_activity: null,
+  ended_at: null,
   ...over,
 });
 
