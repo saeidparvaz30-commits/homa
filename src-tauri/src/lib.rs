@@ -8,6 +8,7 @@ pub mod model;
 pub mod notify;
 pub mod overlay;
 pub mod poller;
+pub mod reap;
 pub mod probe;
 pub mod session;
 pub mod settings;
