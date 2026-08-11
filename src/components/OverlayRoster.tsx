@@ -37,7 +37,7 @@ export function OverlayRoster() {
   const commit = (cwd: string) => {
     if (editing === null) return;
     setEditing(null);
-    Promise.resolve(invoke("set_alias", { cwd, name: draft })).catch(() => {});
+    invoke("set_alias", { cwd, name: draft }).catch(() => {});
   };
 
   const cancel = () => setEditing(null);

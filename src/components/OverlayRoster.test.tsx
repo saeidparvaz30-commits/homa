@@ -18,7 +18,7 @@ vi.mock("@tauri-apps/api/window", () => ({
 vi.mock("@tauri-apps/api/dpi", () => ({
   LogicalSize: class { constructor(public width: number, public height: number) {} },
 }));
-vi.mock("@tauri-apps/api/core", () => ({ invoke: vi.fn() }));
+vi.mock("@tauri-apps/api/core", () => ({ invoke: vi.fn().mockResolvedValue(undefined) }));
 
 const setAgents = (a: AgentState[]) => {
   h.agents = a;
