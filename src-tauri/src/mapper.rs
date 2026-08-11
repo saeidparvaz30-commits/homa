@@ -8,7 +8,7 @@ pub fn map_status(raw: &str, pid_alive: bool) -> AgentStatus {
         return AgentStatus::Ended;
     }
     let r = raw.trim().to_ascii_lowercase();
-    if r == "busy" {
+    if r == "busy" || r == "shell" {
         return AgentStatus::Working;
     }
     if r == "idle" {
@@ -41,6 +41,12 @@ mod tests {
     #[test]
     fn unknown_fails_toward_attention() {
         assert_eq!(map_status("banana", true), AgentStatus::Idle);
+    }
+
+    #[test]
+    fn shell_is_working_not_idle() {
+        assert_eq!(map_status("shell", true), AgentStatus::Working);
+        assert_eq!(map_status("SHELL", true), AgentStatus::Working);
     }
 
     #[test]
