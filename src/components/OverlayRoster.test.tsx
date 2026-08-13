@@ -39,6 +39,9 @@ const mk = (over: Partial<AgentState>): AgentState => ({
   context_pct: null,
   last_activity: null,
   ended_at: null,
+  limited_until: null,
+  was_busy_at_limit: false,
+  resume_fired: false,
   ...over,
 });
 
@@ -112,6 +115,51 @@ test("an empty commit clears the alias rather than storing a blank", () => {
   oneRow();
   fireEvent.keyDown(edit("   "), { key: "Enter" });
   expect(invoke).toHaveBeenCalledWith("set_alias", { cwd: "C:\\Homa", name: "   " });
+});
+
+test("limited row shows purple dot and reset time", () => {
+  const at = new Date(2026, 7, 13, 0, 40).getTime();
+  setAgents([mk({ session_id: "a", name: "x", status: "limited", limited_until: at })]);
+  render(<OverlayRoster />);
+  expect(screen.getByTestId("row-dot")).toHaveAttribute("data-status", "limited");
+  expect(screen.getByText("resets 12:40am")).toBeInTheDocument();
+});
+
+test("limited row past reset with resume fired says resuming", () => {
+  setAgents([
+    mk({ session_id: "a", name: "x", status: "limited", limited_until: 5, resume_fired: true }),
+  ]);
+  render(<OverlayRoster />);
+  expect(screen.getByText("resuming")).toBeInTheDocument();
+});
+
+test("single click focuses the session terminal after the dblclick window", () => {
+  vi.useFakeTimers();
+  vi.mocked(invoke).mockClear();
+  setAgents([mk({ session_id: "a", name: "homa", pid: 7, cwd: "C:\\Homa" })]);
+  render(<OverlayRoster />);
+  fireEvent.click(screen.getByTestId("row-name"));
+  expect(invoke).not.toHaveBeenCalled();
+  vi.advanceTimersByTime(300);
+  expect(invoke).toHaveBeenCalledWith("focus_session", {
+    pid: 7,
+    cwd: "C:\\Homa",
+    sessionId: "a",
+  });
+  vi.useRealTimers();
+});
+
+test("double click renames and cancels the pending focus", () => {
+  vi.useFakeTimers();
+  vi.mocked(invoke).mockClear();
+  setAgents([mk({ session_id: "a", name: "homa", cwd: "C:\\Homa" })]);
+  render(<OverlayRoster />);
+  fireEvent.click(screen.getByTestId("row-name"));
+  fireEvent.doubleClick(screen.getByTestId("row-name"));
+  vi.advanceTimersByTime(600);
+  expect(invoke).not.toHaveBeenCalledWith("focus_session", expect.anything());
+  expect(screen.getByRole("textbox")).toBeInTheDocument();
+  vi.useRealTimers();
 });
 
 test("top bar shows a minimize button that hides the overlay", () => {

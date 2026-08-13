@@ -1,16 +1,31 @@
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { invoke } from "@tauri-apps/api/core";
 import { useAgents } from "../hooks/useAgents";
-import type { AgentStatus } from "../types";
+import type { AgentState, AgentStatus } from "../types";
 
 const DOT: Record<AgentStatus, string> = {
   waiting: "bg-red-500",
+  limited: "bg-purple-500",
   idle: "bg-amber-400",
   working: "bg-sky-500",
   ended: "bg-neutral-500",
 };
 
-const RANK: Record<AgentStatus, number> = { waiting: 3, idle: 2, working: 1, ended: 0 };
+const RANK: Record<AgentStatus, number> = {
+  waiting: 4,
+  limited: 3,
+  idle: 2,
+  working: 1,
+  ended: 0,
+};
+
+const fmtReset = (ms: number) => {
+  const d = new Date(ms);
+  const h24 = d.getHours();
+  const h = h24 % 12 === 0 ? 12 : h24 % 12;
+  const m = String(d.getMinutes()).padStart(2, "0");
+  return `${h}:${m}${h24 < 12 ? "am" : "pm"}`;
+};
 
 export function OverlayRoster() {
   const agents = useAgents();
@@ -33,6 +48,22 @@ export function OverlayRoster() {
   };
 
   const cancel = () => setEditing(null);
+
+  const clickTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  // A single click focuses the session's terminal, but only after the
+  // double-click window has passed so renaming never yanks focus away.
+  const clickFocus = (a: AgentState) => {
+    if (editing !== null) return;
+    if (clickTimer.current) clearTimeout(clickTimer.current);
+    clickTimer.current = setTimeout(() => {
+      invoke("focus_session", {
+        pid: a.pid,
+        cwd: a.cwd,
+        sessionId: a.session_id,
+      }).catch(() => {});
+    }, 250);
+  };
 
   return (
     <div className="flex h-screen w-screen flex-col rounded-xl bg-neutral-950/90 px-2 py-1 text-neutral-100 select-none">
@@ -72,10 +103,23 @@ export function OverlayRoster() {
           ) : (
             <span
               data-testid="row-name"
-              onDoubleClick={() => beginEdit(a.session_id, a.name)}
+              onClick={() => clickFocus(a)}
+              onDoubleClick={() => {
+                if (clickTimer.current) clearTimeout(clickTimer.current);
+                beginEdit(a.session_id, a.name);
+              }}
               className="truncate"
             >
               {a.name}
+            </span>
+          )}
+          {a.status === "limited" && (
+            <span className="ml-auto shrink-0 text-xs text-neutral-400">
+              {a.resume_fired
+                ? "resuming"
+                : a.limited_until
+                  ? `resets ${fmtReset(a.limited_until)}`
+                  : "limited"}
             </span>
           )}
         </div>
