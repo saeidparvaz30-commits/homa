@@ -74,6 +74,9 @@ pub fn scan_once_with(dir: &Path, enrich: bool, aliases: &Aliases) -> Vec<AgentS
             context_pct: None,
             last_activity: None,
             ended_at: None,
+            limited_until: None,
+            was_busy_at_limit: false,
+            resume_fired: false,
         };
         if enrich && alive {
             let e = enrich_from_path(&transcript_path(&s.cwd, &s.session_id));

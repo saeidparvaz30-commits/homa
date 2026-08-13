@@ -4,19 +4,21 @@ use crate::model::{AgentState, AgentStatus};
 pub struct TraySummary {
     pub top: AgentStatus,
     pub waiting: usize,
+    pub limited: usize,
     pub idle: usize,
     pub working: usize,
 }
 
 pub fn summarize(agents: &[AgentState]) -> TraySummary {
     let mut top = AgentStatus::Ended;
-    let (mut waiting, mut idle, mut working) = (0, 0, 0);
+    let (mut waiting, mut limited, mut idle, mut working) = (0, 0, 0, 0);
     for a in agents {
         if a.status.priority() > top.priority() {
             top = a.status;
         }
         match a.status {
             AgentStatus::Waiting => waiting += 1,
+            AgentStatus::Limited => limited += 1,
             AgentStatus::Idle => idle += 1,
             AgentStatus::Working => working += 1,
             AgentStatus::Ended => {}
@@ -25,6 +27,7 @@ pub fn summarize(agents: &[AgentState]) -> TraySummary {
     TraySummary {
         top,
         waiting,
+        limited,
         idle,
         working,
     }
@@ -40,7 +43,10 @@ pub struct Transition {
 pub fn transitions(prev: &[AgentState], next: &[AgentState]) -> Vec<Transition> {
     let mut out = Vec::new();
     for n in next {
-        if !matches!(n.status, AgentStatus::Waiting | AgentStatus::Idle) {
+        if !matches!(
+            n.status,
+            AgentStatus::Waiting | AgentStatus::Idle | AgentStatus::Limited
+        ) {
             continue;
         }
         let old = prev.iter().find(|p| p.session_id == n.session_id);
@@ -80,7 +86,26 @@ mod tests {
             context_pct: None,
             last_activity: None,
             ended_at: None,
+            limited_until: None,
+            was_busy_at_limit: false,
+            resume_fired: false,
         }
+    }
+
+    #[test]
+    fn limited_counts_and_can_top_the_summary() {
+        let s = summarize(&[a("1", AgentStatus::Working), a("2", AgentStatus::Limited)]);
+        assert_eq!(s.top, AgentStatus::Limited);
+        assert_eq!(s.limited, 1);
+    }
+
+    #[test]
+    fn transition_into_limited_fires() {
+        let prev = vec![a("1", AgentStatus::Working)];
+        let next = vec![a("1", AgentStatus::Limited)];
+        let t = transitions(&prev, &next);
+        assert_eq!(t.len(), 1);
+        assert_eq!(t[0].to, AgentStatus::Limited);
     }
 
     #[test]

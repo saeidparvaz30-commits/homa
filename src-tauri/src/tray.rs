@@ -7,6 +7,7 @@ use tauri::{AppHandle, Manager};
 fn icon_name(top: AgentStatus) -> &'static str {
     match top {
         AgentStatus::Waiting => "tray-waiting.png",
+        AgentStatus::Limited => "tray-idle.png",
         AgentStatus::Idle => "tray-idle.png",
         AgentStatus::Working => "tray-calm.png",
         AgentStatus::Ended => "tray-ended.png",
@@ -32,8 +33,8 @@ pub fn apply(app: &AppHandle, summary: &TraySummary) {
         let _ = tray.set_icon(Some(img));
     }
     let tip = format!(
-        "Homa  waiting {}  idle {}  working {}",
-        summary.waiting, summary.idle, summary.working
+        "Homa  waiting {}  limited {}  idle {}  working {}",
+        summary.waiting, summary.limited, summary.idle, summary.working
     );
     let _ = tray.set_tooltip(Some(&tip));
 }

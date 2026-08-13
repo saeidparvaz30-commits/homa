@@ -6,13 +6,15 @@ pub enum AgentStatus {
     Working,
     Idle,
     Waiting,
+    Limited,
     Ended,
 }
 
 impl AgentStatus {
     pub fn priority(&self) -> u8 {
         match self {
-            AgentStatus::Waiting => 3,
+            AgentStatus::Waiting => 4,
+            AgentStatus::Limited => 3,
             AgentStatus::Idle => 2,
             AgentStatus::Working => 1,
             AgentStatus::Ended => 0,
@@ -37,6 +39,10 @@ pub struct AgentState {
     pub last_activity: Option<i64>,
     /// Wall clock ms when this session was first observed dead. Set by `reap`.
     pub ended_at: Option<i64>,
+    /// Epoch ms when the usage limit lifts; None for credit/login limits.
+    pub limited_until: Option<i64>,
+    pub was_busy_at_limit: bool,
+    pub resume_fired: bool,
 }
 
 #[cfg(test)]
@@ -47,5 +53,11 @@ mod tests {
         assert!(AgentStatus::Waiting.priority() > AgentStatus::Idle.priority());
         assert!(AgentStatus::Idle.priority() > AgentStatus::Working.priority());
         assert!(AgentStatus::Working.priority() > AgentStatus::Ended.priority());
+    }
+
+    #[test]
+    fn limited_sits_between_waiting_and_idle() {
+        assert!(AgentStatus::Waiting.priority() > AgentStatus::Limited.priority());
+        assert!(AgentStatus::Limited.priority() > AgentStatus::Idle.priority());
     }
 }

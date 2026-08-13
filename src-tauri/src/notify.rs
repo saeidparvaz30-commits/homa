@@ -7,6 +7,7 @@ use tauri_plugin_notification::NotificationExt;
 pub fn notify_transition(app: &AppHandle, t: &Transition, settings: &Settings) {
     let body = match t.to {
         AgentStatus::Waiting => format!("{} is waiting on you", t.name),
+        AgentStatus::Limited => format!("{} hit its usage limit", t.name),
         AgentStatus::Idle => format!("{} is idle, feed it", t.name),
         _ => return,
     };

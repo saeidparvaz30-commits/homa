@@ -196,6 +196,9 @@ mod tests {
             context_pct: None,
             last_activity: None,
             ended_at: None,
+            limited_until: None,
+            was_busy_at_limit: false,
+            resume_fired: false,
         }
     }
 
