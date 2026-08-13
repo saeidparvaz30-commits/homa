@@ -13,4 +13,5 @@ pub mod reap;
 pub mod probe;
 pub mod session;
 pub mod settings;
+pub mod terminal;
 pub mod tray;

@@ -33,6 +33,22 @@ fn hide_overlay(app: tauri::AppHandle) {
     }
 }
 
+#[tauri::command]
+fn focus_session(pid: u32, cwd: String, session_id: String) -> Result<(), String> {
+    let tail = homa_lib::limit::read_tail(
+        &homa_lib::poller::transcript_path(&cwd, &session_id),
+        65_536,
+    );
+    let title = homa_lib::limit::last_ai_title(&tail);
+    match homa_lib::terminal::resolve_hwnd(pid, title.as_deref()) {
+        Some(h) => {
+            homa_lib::terminal::focus_hwnd(h);
+            Ok(())
+        }
+        None => Err("no terminal window found".into()),
+    }
+}
+
 fn toggle_main(app: &tauri::AppHandle) {
     if let Some(w) = app.get_webview_window("main") {
         if w.is_visible().unwrap_or(false) {
@@ -61,7 +77,8 @@ fn main() {
             get_agents,
             set_alias,
             get_aliases,
-            hide_overlay
+            hide_overlay,
+            focus_session
         ])
         .setup(move |app| {
             let show = MenuItem::with_id(app, "show", "Show Homa", true, None::<&str>)?;
