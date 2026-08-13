@@ -84,8 +84,15 @@ fn main() {
             let show = MenuItem::with_id(app, "show", "Show Homa", true, None::<&str>)?;
             let show_overlay =
                 MenuItem::with_id(app, "show-overlay", "Show overlay", true, None::<&str>)?;
+            let auto_label = if homa_lib::settings::Settings::load().auto_resume_enabled {
+                "Auto-resume: on"
+            } else {
+                "Auto-resume: off"
+            };
+            let autoresume = MenuItem::with_id(app, "autoresume", auto_label, true, None::<&str>)?;
             let quit = MenuItem::with_id(app, "quit", "Quit", true, None::<&str>)?;
-            let menu = Menu::with_items(app, &[&show, &show_overlay, &quit])?;
+            let menu = Menu::with_items(app, &[&show, &show_overlay, &autoresume, &quit])?;
+            let auto_item = autoresume.clone();
 
             let icon = tauri::image::Image::from_path(
                 PathBuf::from(env!("CARGO_MANIFEST_DIR"))
@@ -98,7 +105,7 @@ fn main() {
                 .tooltip("Homa")
                 .menu(&menu)
                 .show_menu_on_left_click(false)
-                .on_menu_event(|app, event| match event.id.as_ref() {
+                .on_menu_event(move |app, event| match event.id.as_ref() {
                     "show" => {
                         if let Some(w) = app.get_webview_window("main") {
                             let _ = w.show();
@@ -109,6 +116,16 @@ fn main() {
                         if let Some(w) = app.get_webview_window("overlay") {
                             let _ = w.show();
                         }
+                    }
+                    "autoresume" => {
+                        let mut s = homa_lib::settings::Settings::load();
+                        s.auto_resume_enabled = !s.auto_resume_enabled;
+                        s.save();
+                        let _ = auto_item.set_text(if s.auto_resume_enabled {
+                            "Auto-resume: on"
+                        } else {
+                            "Auto-resume: off"
+                        });
                     }
                     "quit" => app.exit(0),
                     _ => {}

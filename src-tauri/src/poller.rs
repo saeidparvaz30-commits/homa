@@ -197,9 +197,50 @@ pub fn start_watching(app: AppHandle, shared: Shared) {
                 limit::local_secs_since_midnight(),
             );
             crate::reap::reap(&prev, &mut next, crate::reap::now_ms(), crate::reap::ENDED_TTL_MS);
+
+            let settings = crate::settings::Settings::load();
+            // Fires on time passing alone, so it must run every tick, not
+            // only when the scan diff changes.
+            let due = due_for_resume(&next, crate::reap::now_ms(), settings.auto_resume_enabled);
+            if !due.is_empty() {
+                use tauri_plugin_notification::NotificationExt;
+                let mut resumed = 0usize;
+                for i in due {
+                    let a = &mut next[i];
+                    a.resume_fired = true;
+                    let tail =
+                        limit::read_tail(&transcript_path(&a.cwd, &a.session_id), 65_536);
+                    let title = limit::last_ai_title(&tail);
+                    match crate::terminal::resolve_hwnd(a.pid, title.as_deref()) {
+                        Some(h) => {
+                            crate::inject::nudge(h);
+                            resumed += 1;
+                        }
+                        None => {
+                            let _ = app
+                                .notification()
+                                .builder()
+                                .title("Homa")
+                                .body(format!(
+                                    "{} limit reset, no terminal found, resume it yourself",
+                                    a.name
+                                ))
+                                .show();
+                        }
+                    }
+                }
+                if resumed > 0 {
+                    let _ = app
+                        .notification()
+                        .builder()
+                        .title("Homa")
+                        .body(format!("Resumed {resumed} agent(s) after limit reset"))
+                        .show();
+                }
+            }
+
             if next != prev {
                 let summary = summarize(&next);
-                let settings = crate::settings::Settings::load();
                 for t in transitions(&prev, &next) {
                     let _ = app.emit("agent-transition", &t);
                     crate::notify::notify_transition(&app, &t, &settings);
