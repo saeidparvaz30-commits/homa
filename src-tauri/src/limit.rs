@@ -134,6 +134,18 @@ pub fn read_tail(path: &Path, max_bytes: u64) -> Vec<String> {
     lines
 }
 
+/// Seconds since local midnight, from the OS local clock. Kept thin so the
+/// arithmetic in `resets_at_ms` stays pure and testable.
+pub fn local_secs_since_midnight() -> i64 {
+    use windows_sys::Win32::Foundation::SYSTEMTIME;
+    use windows_sys::Win32::System::SystemInformation::GetLocalTime;
+    unsafe {
+        let mut st: SYSTEMTIME = std::mem::zeroed();
+        GetLocalTime(&mut st);
+        (st.wHour as i64) * 3600 + (st.wMinute as i64) * 60 + st.wSecond as i64
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
