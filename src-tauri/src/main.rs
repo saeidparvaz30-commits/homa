@@ -26,6 +26,13 @@ fn get_aliases() -> homa_lib::alias::Aliases {
     homa_lib::alias::load()
 }
 
+#[tauri::command]
+fn hide_overlay(app: tauri::AppHandle) {
+    if let Some(w) = app.get_webview_window("overlay") {
+        let _ = w.hide();
+    }
+}
+
 fn toggle_main(app: &tauri::AppHandle) {
     if let Some(w) = app.get_webview_window("main") {
         if w.is_visible().unwrap_or(false) {
@@ -50,11 +57,18 @@ fn main() {
             None,
         ))
         .manage(shared)
-        .invoke_handler(tauri::generate_handler![get_agents, set_alias, get_aliases])
+        .invoke_handler(tauri::generate_handler![
+            get_agents,
+            set_alias,
+            get_aliases,
+            hide_overlay
+        ])
         .setup(move |app| {
             let show = MenuItem::with_id(app, "show", "Show Homa", true, None::<&str>)?;
+            let show_overlay =
+                MenuItem::with_id(app, "show-overlay", "Show overlay", true, None::<&str>)?;
             let quit = MenuItem::with_id(app, "quit", "Quit", true, None::<&str>)?;
-            let menu = Menu::with_items(app, &[&show, &quit])?;
+            let menu = Menu::with_items(app, &[&show, &show_overlay, &quit])?;
 
             let icon = tauri::image::Image::from_path(
                 PathBuf::from(env!("CARGO_MANIFEST_DIR"))
@@ -72,6 +86,11 @@ fn main() {
                         if let Some(w) = app.get_webview_window("main") {
                             let _ = w.show();
                             let _ = w.set_focus();
+                        }
+                    }
+                    "show-overlay" => {
+                        if let Some(w) = app.get_webview_window("overlay") {
+                            let _ = w.show();
                         }
                     }
                     "quit" => app.exit(0),
@@ -111,6 +130,9 @@ fn main() {
                 w.on_window_event(move |e| {
                     if let WindowEvent::Moved(pos) = e {
                         overlay::remember_position(pos.x as f64, pos.y as f64);
+                    }
+                    if let WindowEvent::Resized(size) = e {
+                        overlay::remember_size(size.width as f64, size.height as f64);
                     }
                 });
             }

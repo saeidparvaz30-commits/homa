@@ -114,6 +114,14 @@ test("an empty commit clears the alias rather than storing a blank", () => {
   expect(invoke).toHaveBeenCalledWith("set_alias", { cwd: "C:\\Homa", name: "   " });
 });
 
+test("top bar shows a minimize button that hides the overlay", () => {
+  vi.mocked(invoke).mockClear();
+  setAgents([]);
+  render(<OverlayRoster />);
+  fireEvent.click(screen.getByLabelText("minimize"));
+  expect(invoke).toHaveBeenCalledWith("hide_overlay");
+});
+
 test("blur commits", () => {
   vi.mocked(invoke).mockClear();
   oneRow();

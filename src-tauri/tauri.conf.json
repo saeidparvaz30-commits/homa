@@ -24,14 +24,14 @@
       {
         "label": "overlay",
         "url": "overlay.html",
-        "width": 220,
-        "height": 64,
+        "width": 320,
+        "height": 280,
         "visible": false,
         "decorations": false,
         "alwaysOnTop": true,
         "skipTaskbar": true,
         "transparent": true,
-        "resizable": false,
+        "resizable": true,
         "focus": false
       }
     ]
