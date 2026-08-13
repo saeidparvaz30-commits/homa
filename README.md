@@ -96,10 +96,11 @@ chime when an agent goes idle.
 ## Naming sessions
 
 Each row in the overlay shows a name derived from the session's working folder.
-Double click a row to rename it. Names are per folder, so every session started
-from that folder picks up the same name until it is changed again. Press Enter
-to save; the name is written to `%APPDATA%\homa\aliases.json`. Saving an empty
-name clears the alias and the row falls back to the folder-derived name.
+Double click a row to rename it; the name applies to that session only and is
+stored under its session id in `%APPDATA%\homa\aliases.json`. Folder-keyed
+aliases in the same file act as a default for sessions never renamed
+individually. Saving an empty name clears the alias and the row falls back to
+the folder default or the folder-derived name.
 
 ## Replay mode (deterministic testing)
 

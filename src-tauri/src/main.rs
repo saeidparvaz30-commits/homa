@@ -15,8 +15,8 @@ fn get_agents(state: tauri::State<poller::Shared>) -> Vec<AgentState> {
 }
 
 #[tauri::command]
-fn set_alias(cwd: String, name: String) -> Result<(), String> {
-    homa_lib::alias::set_in(&homa_lib::alias::aliases_path(), &cwd, &name)
+fn set_alias(session_id: String, name: String) -> Result<(), String> {
+    homa_lib::alias::set_session_in(&homa_lib::alias::aliases_path(), &session_id, &name)
         .map(|_| ())
         .map_err(|e| e.to_string())
 }
@@ -49,13 +49,14 @@ fn focus_session(pid: u32, cwd: String, session_id: String) -> Result<(), String
     }
 }
 
-fn toggle_main(app: &tauri::AppHandle) {
-    if let Some(w) = app.get_webview_window("main") {
+/// Left-clicking the tray toggles the overlay roster, Homa's primary surface.
+/// The v1 dashboard window stays reachable via the tray menu's "Show Homa".
+fn toggle_overlay(app: &tauri::AppHandle) {
+    if let Some(w) = app.get_webview_window("overlay") {
         if w.is_visible().unwrap_or(false) {
             let _ = w.hide();
         } else {
             let _ = w.show();
-            let _ = w.set_focus();
         }
     }
 }
@@ -137,7 +138,7 @@ fn main() {
                         ..
                     } = event
                     {
-                        toggle_main(tray.app_handle());
+                        toggle_overlay(tray.app_handle());
                     }
                 })
                 .build(app)?;

@@ -41,10 +41,10 @@ export function OverlayRoster() {
     setDraft(current);
   };
 
-  const commit = (cwd: string) => {
+  const commit = (sessionId: string) => {
     if (editing === null) return;
     setEditing(null);
-    invoke("set_alias", { cwd, name: draft }).catch(() => {});
+    invoke("set_alias", { sessionId, name: draft }).catch(() => {});
   };
 
   const cancel = () => setEditing(null);
@@ -94,10 +94,10 @@ export function OverlayRoster() {
               value={draft}
               onChange={(e) => setDraft(e.target.value)}
               onKeyDown={(e) => {
-                if (e.key === "Enter") commit(a.cwd);
+                if (e.key === "Enter") commit(a.session_id);
                 if (e.key === "Escape") cancel();
               }}
-              onBlur={() => commit(a.cwd)}
+              onBlur={() => commit(a.session_id)}
               className="min-w-0 flex-1 rounded border border-sky-500 bg-neutral-900 px-1 text-sm outline-none"
             />
           ) : (

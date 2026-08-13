@@ -95,11 +95,11 @@ test("double click turns the name into an input seeded with the current name", (
   expect(screen.getByRole("textbox")).toHaveValue("homa");
 });
 
-test("enter commits the new name against the row's cwd", () => {
+test("enter commits the new name against the row's session", () => {
   vi.mocked(invoke).mockClear();
   oneRow();
   fireEvent.keyDown(edit("tray app"), { key: "Enter" });
-  expect(invoke).toHaveBeenCalledWith("set_alias", { cwd: "C:\\Homa", name: "tray app" });
+  expect(invoke).toHaveBeenCalledWith("set_alias", { sessionId: "a", name: "tray app" });
 });
 
 test("escape cancels without saving", () => {
@@ -114,7 +114,7 @@ test("an empty commit clears the alias rather than storing a blank", () => {
   vi.mocked(invoke).mockClear();
   oneRow();
   fireEvent.keyDown(edit("   "), { key: "Enter" });
-  expect(invoke).toHaveBeenCalledWith("set_alias", { cwd: "C:\\Homa", name: "   " });
+  expect(invoke).toHaveBeenCalledWith("set_alias", { sessionId: "a", name: "   " });
 });
 
 test("limited row shows purple dot and reset time", () => {
@@ -174,5 +174,5 @@ test("blur commits", () => {
   vi.mocked(invoke).mockClear();
   oneRow();
   fireEvent.blur(edit("blurred"));
-  expect(invoke).toHaveBeenCalledWith("set_alias", { cwd: "C:\\Homa", name: "blurred" });
+  expect(invoke).toHaveBeenCalledWith("set_alias", { sessionId: "a", name: "blurred" });
 });

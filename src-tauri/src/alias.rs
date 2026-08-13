@@ -45,9 +45,8 @@ pub fn save_to(p: &Path, a: &Aliases) -> std::io::Result<()> {
     std::fs::rename(&tmp, p)
 }
 
-pub fn set_in(p: &Path, cwd: &str, name: &str) -> std::io::Result<Aliases> {
+fn set_raw_in(p: &Path, key: String, name: &str) -> std::io::Result<Aliases> {
     let mut a = load_from(p);
-    let key = normalize_key(cwd);
     let n = name.trim();
     if n.is_empty() {
         a.remove(&key);
@@ -56,6 +55,21 @@ pub fn set_in(p: &Path, cwd: &str, name: &str) -> std::io::Result<Aliases> {
     }
     save_to(p, &a)?;
     Ok(a)
+}
+
+pub fn set_in(p: &Path, cwd: &str, name: &str) -> std::io::Result<Aliases> {
+    set_raw_in(p, normalize_key(cwd), name)
+}
+
+/// A rename made in the roster targets exactly one session, so it is stored
+/// under the session id, not the folder. Folder aliases remain as the default
+/// for sessions that were never individually renamed.
+pub fn session_key(session_id: &str) -> String {
+    format!("sid:{session_id}")
+}
+
+pub fn set_session_in(p: &Path, session_id: &str, name: &str) -> std::io::Result<Aliases> {
+    set_raw_in(p, session_key(session_id), name)
 }
 
 use crate::model::AgentState;
@@ -74,7 +88,8 @@ pub fn last_segment(cwd: &str) -> String {
 pub fn resolve(agents: &mut [AgentState], aliases: &Aliases) {
     for a in agents.iter_mut() {
         let alias = aliases
-            .get(&normalize_key(&a.cwd))
+            .get(&session_key(&a.session_id))
+            .or_else(|| aliases.get(&normalize_key(&a.cwd)))
             .map(String::as_str)
             .filter(|s| !s.trim().is_empty());
         a.name = match alias {
@@ -200,6 +215,29 @@ mod tests {
             was_busy_at_limit: false,
             resume_fired: false,
         }
+    }
+
+    #[test]
+    fn session_alias_wins_over_cwd_alias_and_applies_to_one_session_only() {
+        let mut a = Aliases::new();
+        a.insert(normalize_key("C:\\Foo"), "folder name".into());
+        a.insert(session_key("s1"), "my agent".into());
+        let mut v = vec![
+            agent("C:\\Foo", "agent-foo-61", 100, "s1"),
+            agent("C:\\Foo", "agent-foo-62", 200, "s2"),
+        ];
+        resolve(&mut v, &a);
+        assert_eq!(v[0].name, "my agent");
+        assert_eq!(v[1].name, "folder name");
+    }
+
+    #[test]
+    fn set_session_round_trips_and_empty_clears() {
+        let p = tmpdir("session").join("aliases.json");
+        set_session_in(&p, "abc", "named").unwrap();
+        assert_eq!(load_from(&p).get(&session_key("abc")).map(String::as_str), Some("named"));
+        set_session_in(&p, "abc", "  ").unwrap();
+        assert!(load_from(&p).is_empty());
     }
 
     #[test]
