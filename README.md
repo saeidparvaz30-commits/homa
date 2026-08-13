@@ -21,15 +21,42 @@ distinctly, because an idle agent is one that finished and is waiting for its ne
   writes to `~/.claude/sessions/<pid>.json` (name, cwd, live `status`, timestamps),
   and enriches from the matching transcript in `~/.claude/projects/` (model,
   context %, git branch) only while the main window is open.
-- **State model:** `busy` -> Working, `idle` -> Idle, dead process -> Ended, and any
-  waiting/blocked status -> Waiting. Unknown values fail toward attention.
-- **Signals:** tray icon color (blue working, amber idle, red waiting), tray tooltip
-  counts, Windows toasts on transitions, an optional sound, and an always-on-top
-  overlay that stays visible as a permanent dashboard, listing every live session
-  by name with a colored dot for its state.
+- **State model:** `busy`/`shell` -> Working, `idle` -> Idle, dead process -> Ended,
+  any waiting/blocked status -> Waiting, and a fresh usage-limit message in the
+  transcript -> Limited. Unknown values fail toward attention.
+- **Signals:** tray icon color (blue working, amber idle or limited, red waiting),
+  tray tooltip counts, Windows toasts on transitions, an optional sound, and an
+  always-on-top overlay that stays visible as a permanent dashboard, listing every
+  live session by name with a colored dot for its state (purple = limited).
 
-Tray priority is Waiting > Idle > Working. The tray icon always reflects the most
-urgent agent.
+Tray priority is Waiting > Limited > Idle > Working. The tray icon always reflects
+the most urgent agent.
+
+## The overlay
+
+The overlay is a resizable always-on-top panel. Drag the top bar to move it,
+drag any edge to resize; position and size persist across restarts. The minus
+button in the top bar hides it; bring it back with tray > Show overlay.
+
+Single click a row to bring that agent's terminal window to the foreground.
+Double click a row to rename it.
+
+## Usage limit auto resume
+
+When Claude Code stops a session with "You've hit your session limit", Homa
+turns the row purple and shows the reset time. If the session was actively
+working when the limit hit, then the moment the reset time passes Homa focuses
+that session's terminal, types `continue`, and presses Enter, so the agent picks
+its task back up unattended. A toast reports how many agents were resumed.
+
+- Only mid-task sessions are auto-resumed; sessions idle at the limit stay put.
+- Toggle the whole behaviour with tray > Auto-resume: on/off
+  (`auto_resume_enabled` in `%APPDATA%\homa\settings.json`).
+- "Credit balance is too low" and "Login expired" also show as Limited but are
+  never auto-resumed; those need you.
+- Limitations: if two sessions share one terminal window as tabs, the nudge
+  lands in the active tab; sessions hosted in VS Code's integrated terminal or
+  whose terminal was closed get a toast instead of a nudge.
 
 ## Requirements
 
@@ -60,7 +87,7 @@ Optional sound is off by default. To enable it, edit
 `%APPDATA%\homa\settings.json`:
 
 ```json
-{ "sound_enabled": true, "sound_on_idle": false }
+{ "sound_enabled": true, "sound_on_idle": false, "auto_resume_enabled": true }
 ```
 
 `sound_enabled` plays a chime on the waiting transition; set `sound_on_idle` to also
