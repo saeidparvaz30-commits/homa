@@ -2,6 +2,7 @@ pub mod alias;
 pub mod aggregate;
 pub mod derive;
 pub mod enrich;
+pub mod limit;
 pub mod liveness;
 pub mod mapper;
 pub mod model;
