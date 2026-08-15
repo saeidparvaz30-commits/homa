@@ -14,7 +14,7 @@ fn icon_name(top: AgentStatus) -> &'static str {
     }
 }
 
-fn icon_path(app: &AppHandle, name: &str) -> PathBuf {
+pub fn icon_path(app: &AppHandle, name: &str) -> PathBuf {
     // Bundled: resources/icons. Dev: source-tree icons via CARGO_MANIFEST_DIR.
     if let Ok(dir) = app.path().resource_dir() {
         let p = dir.join("icons").join(name);

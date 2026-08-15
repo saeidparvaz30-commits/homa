@@ -1,6 +1,5 @@
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 
-use std::path::PathBuf;
 use std::sync::{Arc, Mutex};
 
 use tauri::menu::{Menu, MenuItem};
@@ -95,11 +94,10 @@ fn main() {
             let menu = Menu::with_items(app, &[&show, &show_overlay, &autoresume, &quit])?;
             let auto_item = autoresume.clone();
 
-            let icon = tauri::image::Image::from_path(
-                PathBuf::from(env!("CARGO_MANIFEST_DIR"))
-                    .join("icons")
-                    .join("tray-ended.png"),
-            )?;
+            let icon = tauri::image::Image::from_path(homa_lib::tray::icon_path(
+                app.handle(),
+                "tray-ended.png",
+            ))?;
 
             TrayIconBuilder::with_id("homa-tray")
                 .icon(icon)
